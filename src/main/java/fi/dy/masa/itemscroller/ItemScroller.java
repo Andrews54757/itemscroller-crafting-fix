@@ -13,5 +13,6 @@ public class ItemScroller implements ModInitializer
     public void onInitialize()
     {
         InitializationHandler.getInstance().registerInitializationHandler(new InitHandler());
+        fi.dy.masa.itemscroller.compat.carpet.StackingShulkerBoxes.init();
     }
 }

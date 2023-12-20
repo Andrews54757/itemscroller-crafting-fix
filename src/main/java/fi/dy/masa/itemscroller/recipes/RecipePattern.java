@@ -3,6 +3,8 @@ package fi.dy.masa.itemscroller.recipes;
 import java.util.HashSet;
 import java.util.Arrays;
 import javax.annotation.Nonnull;
+
+import fi.dy.masa.itemscroller.compat.carpet.StackingShulkerBoxes;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -59,8 +61,9 @@ public class RecipePattern
             if (this.recipe[i].getItem().hasRecipeRemainder()) {
                 this.recipeRemainders.add(recipe[i].getItem().getRecipeRemainder());
             }
-            if (this.recipe[i].getMaxCount() < maxCraftAmount) {
-                maxCraftAmount = this.recipe[i].getMaxCount();
+            int maxCount = StackingShulkerBoxes.getMaxCount(this.recipe[i]);
+            if (maxCount < maxCraftAmount) {
+                maxCraftAmount = maxCount;
             }
         }
     }
