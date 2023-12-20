@@ -4,7 +4,10 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.client.gui.screen.ingame.StonecutterScreen;
 import net.minecraft.recipe.CraftingRecipe;
+import net.minecraft.recipe.StonecuttingRecipe;
+import net.minecraft.screen.StonecutterScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import fi.dy.masa.malilib.config.options.ConfigHotkey;
 import fi.dy.masa.malilib.gui.GuiBase;
@@ -159,12 +162,24 @@ public class KeybindCallbacks implements IHotkeyCallback, IClientTickHandler {
                 RecipePattern recipe = RecipeStorage.getInstance().getSelectedRecipe();
 
                 CraftingRecipe bookRecipe = InventoryUtils.getBookRecipeFromPattern(recipe);
-                if (bookRecipe != null && !bookRecipe.isIgnoredInRecipeBook()) { // Use recipe book if possible
+                if (!(gui instanceof StonecutterScreen) && bookRecipe != null && !bookRecipe.isIgnoredInRecipeBook()) { // Use recipe book if possible
                     // System.out.println("recipe");
-                    mc.interactionManager.clickRecipe(gui.getScreenHandler().syncId, bookRecipe, true);
+                    if(Configs.Toggles.RESERVED_CRAFTING.getBooleanValue()) {
+                        int option = InventoryUtils.checkRecipeEnough(recipe, gui);
+                        if (option > 0) {
+                            mc.interactionManager.clickRecipe(gui.getScreenHandler().syncId, bookRecipe, option > 1);
+                        }
+                    }
+                    else{
+                        mc.interactionManager.clickRecipe(gui.getScreenHandler().syncId, bookRecipe, true);
+                    }
                 } else {
                     // System.out.println("move");
                     InventoryUtils.tryMoveItemsToFirstCraftingGrid(recipe, gui, true);
+                    int stonecuttingRecipeIndex = InventoryUtils.getStonecuttingRecipeFromPattern(recipe);
+                    if(stonecuttingRecipeIndex != -1 && gui instanceof StonecutterScreen) {
+                        mc.interactionManager.clickButton((gui.getScreenHandler()).syncId, stonecuttingRecipeIndex);
+                    }
                 }
 
                 for (int i = 0; i < recipe.getMaxCraftAmount(); i++) {

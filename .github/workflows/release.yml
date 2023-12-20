@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      target_release_tag:
+        description: The tag of the release you want to append the artifact to
+        type: string
+        required: true
+
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.setmatrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v2.5.0
+
+      - name: Display context
+        run: |
+          echo ref_name = ${{ github.ref_name }}
+          echo target_release_tag = ${{ github.event.inputs.target_release_tag }}
+
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      release: true
+
+  release:
+    needs:
+      - build
+      - prepare
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+          path: build-artifacts
+
+      - name: Get github release information
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        id: get_release
+        uses: cardinalby/git-get-release-action@1.2.4
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tag: ${{ github.event.inputs.target_release_tag }}
+
+      - name: Generate publish related infomation
+        id: release_info
+        run: |
+          if [ $GITHUB_EVENT_NAME == 'release' ]
+          then
+              echo "::set-output name=tag_name::"  # leave an empty value here so softprops/action-gh-release will use the default value
+          elif [ $GITHUB_EVENT_NAME == 'workflow_dispatch' ]
+          then
+              echo "::set-output name=tag_name::${{ github.event.inputs.target_release_tag }}"
+          else
+              echo Unknown github event name $GITHUB_EVENT_NAME
+              exit 1
+          fi
+
+      - name: Read Properties mod_version
+        id: mod_version
+        uses: christian-draeger/read-properties@1.1.1
+        with:
+          path: gradle.properties
+          property: mod_version
+
+      - name: Read Properties minecraft_version
+        id: minecraft_version
+        uses: christian-draeger/read-properties@1.1.1
+        with:
+          path: gradle.properties
+          property: minecraft_version
+
+      - name: Publish Minecraft Mods
+        uses: Kir-Antipov/mc-publish@v3.2
+        with:
+          github-tag: ${{ steps.release_info.outputs.tag_name }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+          files-primary: ${{'build-artifacts/!(*-@(dev|sources)).jar'}}
+          files-secondary: ''
+
+          name: ${{ format('Itemscroller v {0} for mc{1}', steps.mod_version.outputs.value, steps.minecraft_version.outputs.value) }}
+          version: ${{ format('mc{0}-v{1}', steps.minecraft_version.outputs.value, steps.mod_version.outputs.value) }}
+          version-type: release
+          changelog: ${{ format('{0}{1}', github.event.release.body, steps.get_release.outputs.body) }}  # one of them should be an empty string (null)
+
+          loaders: fabric
+          game-versions: ${{ matrix.game_versions }}
+          version-resolver: exact
+
+          retry-attempts: 3
+          retry-delay: 10000

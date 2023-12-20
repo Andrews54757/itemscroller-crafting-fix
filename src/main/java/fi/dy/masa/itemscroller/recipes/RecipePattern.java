@@ -9,6 +9,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.recipe.CraftingRecipe;
+import net.minecraft.recipe.StonecuttingRecipe;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import fi.dy.masa.itemscroller.recipes.CraftingHandler.SlotRange;
@@ -20,6 +21,8 @@ public class RecipePattern
     private ItemStack result = InventoryUtils.EMPTY_STACK;
     private ItemStack[] recipe = new ItemStack[9];
     public CraftingRecipe cachedRecipeFromBook = null;
+
+    public int cachedRecipeFromStonecutting = -1;
     private int maxCraftAmount = 64;
     private HashSet<Item> recipeRemainders = new HashSet<Item>();
 

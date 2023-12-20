@@ -13,6 +13,7 @@ import javax.annotation.Nullable;
 import fi.dy.masa.itemscroller.ItemScroller;
 import fi.dy.masa.itemscroller.config.Configs;
 import fi.dy.masa.itemscroller.config.Hotkeys;
+import fi.dy.masa.itemscroller.mixin.IMixinAnvilScreen;
 import fi.dy.masa.itemscroller.recipes.CraftingHandler;
 import fi.dy.masa.itemscroller.recipes.CraftingHandler.SlotRange;
 import fi.dy.masa.itemscroller.recipes.RecipePattern;
@@ -20,24 +21,24 @@ import fi.dy.masa.itemscroller.recipes.RecipeStorage;
 import fi.dy.masa.itemscroller.villager.VillagerDataStorage;
 import fi.dy.masa.itemscroller.villager.VillagerUtils;
 import fi.dy.masa.malilib.util.GuiUtils;
+import org.apache.commons.lang3.StringUtils;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.gui.screen.ingame.InventoryScreen;
-import net.minecraft.client.gui.screen.ingame.MerchantScreen;
+import net.minecraft.client.gui.screen.ingame.*;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.CraftingInventory;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.recipe.CraftingRecipe;
 import net.minecraft.recipe.RecipeManager;
 import net.minecraft.recipe.RecipeType;
+import net.minecraft.recipe.StonecuttingRecipe;
 import net.minecraft.screen.Generic3x3ContainerScreenHandler;
 import net.minecraft.registry.Registries;
 import net.minecraft.screen.MerchantScreenHandler;
@@ -1187,7 +1188,7 @@ public class InventoryUtils {
 
             // This slot is used to check that we get items from a DIFFERENT inventory than
             // where this slot is in
-            Slot slotGridFirst = container.getSlot(range.getFirst());
+            Slot[] slotGrids = {container.getSlot(range.getFirst()), slot};
             Map<ItemType, IntArrayList> ingredientSlots = ItemType.getSlotsPerItem(recipe.getRecipeItems());
 
             for (Map.Entry<ItemType, IntArrayList> entry : ingredientSlots.entrySet()) {
@@ -1202,9 +1203,9 @@ public class InventoryUtils {
                 }
 
                 if (fillStacks) {
-                    fillCraftingGrid(gui, slotGridFirst, ingredientReference, targetSlots);
+                    fillCraftingGrid(gui, slotGrids, ingredientReference, targetSlots);
                 } else {
-                    moveOneRecipeItemIntoCraftingGrid(gui, slotGridFirst, ingredientReference, targetSlots);
+                    moveOneRecipeItemIntoCraftingGrid(gui, slotGrids, ingredientReference, targetSlots);
                 }
             }
         }
@@ -1213,7 +1214,7 @@ public class InventoryUtils {
     }
 
     private static void fillCraftingGrid(HandledScreen<? extends ScreenHandler> gui,
-            Slot slotGridFirst,
+            Slot[] slotGrids,
             ItemStack ingredientReference,
             IntArrayList targetSlots) {
         ScreenHandler container = gui.getScreenHandler();
@@ -1226,7 +1227,7 @@ public class InventoryUtils {
         }
 
         while (true) {
-            slotNum = getSlotNumberOfLargestMatchingStackFromDifferentInventory(container, slotGridFirst,
+            slotNum = getSlotNumberOfLargestMatchingStackFromDifferentInventory(container, slotGrids,
                     ingredientReference);
 
             // Didn't find ingredient items
@@ -1333,6 +1334,32 @@ public class InventoryUtils {
         return null;
     }
 
+    public static int getStonecuttingRecipeFromPattern(RecipePattern recipe) {
+        if(recipe.cachedRecipeFromStonecutting != -1) {
+            return recipe.cachedRecipeFromStonecutting;
+        }
+        else {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            RecipeManager recipeManager = mc.world.getRecipeManager();
+
+            ItemStack[] items = recipe.getRecipeItems();
+            SimpleInventory search = new SimpleInventory(items.length);
+            // Set dummy slots with recipe pattern
+            for (int i = 0; i < items.length; i++) {
+                search.setStack(i, items[i]);
+            }
+            List<StonecuttingRecipe> inputRecipes = recipeManager.getAllMatches(RecipeType.STONECUTTING, search, mc.world);
+            for(int i=0; i<inputRecipes.size(); ++i) {
+                StonecuttingRecipe inputRecipe = inputRecipes.get(i);
+                if(inputRecipe.getOutput().getItem() == recipe.getResult().getItem()) {
+                    recipe.cachedRecipeFromStonecutting = i;
+                    return recipe.cachedRecipeFromStonecutting;
+                }
+            }
+        }
+        return -1;
+    }
+
     public static void craftEverythingPossibleWithCurrentRecipe(RecipePattern recipe,
             HandledScreen<? extends ScreenHandler> gui) {
         Slot slot = CraftingHandler.getFirstCraftingOutputSlotForGui(gui);
@@ -1342,19 +1369,31 @@ public class InventoryUtils {
             SlotRange range = CraftingHandler.getCraftingGridSlots(gui, slot);
 
             if (range != null) {
-
+                String cacheName = null;
                 for (int i = 0; i < 36; i++) {
                     CraftingRecipe bookRecipe = getBookRecipeFromPattern(recipe);
-                    if (bookRecipe != null && !bookRecipe.isIgnoredInRecipeBook()) { // Use recipe book if possible
+                    if (!(gui instanceof StonecutterScreen) && bookRecipe != null && !bookRecipe.isIgnoredInRecipeBook()) { // Use recipe book if possible
                         MinecraftClient mc = MinecraftClient.getInstance();
                         mc.interactionManager.clickRecipe(gui.getScreenHandler().syncId, bookRecipe, true);
                     } else {
+                        if(cacheName == null && gui instanceof AnvilScreen) {
+                            cacheName = ((IMixinAnvilScreen)gui).itemscroller_getNameField().getText();
+                        }
                         // Clear all items from the grid first, to avoid unbalanced stacks
                         if (clearCraftingGridOfItems(recipe, gui, range, false) == false) {
                             continue;
                         }
 
                         tryMoveItemsToCraftingGridSlots(recipe, slot, gui, true);
+
+                        int stonecuttingRecipeIndex = InventoryUtils.getStonecuttingRecipeFromPattern(recipe);
+                        if(stonecuttingRecipeIndex != -1 && gui instanceof StonecutterScreen) {
+                            MinecraftClient mc = MinecraftClient.getInstance();
+                            mc.interactionManager.clickButton((gui.getScreenHandler()).syncId, stonecuttingRecipeIndex);
+                        }
+                    }
+                    if(!StringUtils.isBlank(cacheName) && gui instanceof AnvilScreen) {
+                        ((IMixinAnvilScreen)gui).itemscroller_setItemName(cacheName);
                     }
                     shiftClickSlot(gui, slot.id);
                 }
@@ -1476,6 +1515,46 @@ public class InventoryUtils {
         }
     }
 
+    /**
+     * Check whether the player has enough items in their inventory
+     * to craft the given recipe even after an extra crafting step.
+     * For example, if the recipe requires 2 stone items, thus we cannot craft it with exactly 2 stone items left,
+     * as after the single crafting we could not pick up another stone item if the inventory is full.
+     * @param recipe The recipe to be crafted
+     */
+    public static int checkRecipeEnough(RecipePattern recipe, HandledScreen<? extends ScreenHandler> gui) {
+        Slot craftingOutputSlot = CraftingHandler.getFirstCraftingOutputSlotForGui(gui);
+        ScreenHandler container = gui.getScreenHandler();
+        int numSlots = container.slots.size();
+        SlotRange range = CraftingHandler.getCraftingGridSlots(gui, craftingOutputSlot);
+
+        // Check that the slot range is valid and that the recipe can fit into this type
+        // of crafting grid
+        if (range != null && range.getLast() < numSlots && recipe.getRecipeLength() <= range.getSlotCount()) {
+            // This slot is used to check that we get items from a DIFFERENT inventory than
+            // where this slot is in
+            Map<ItemType, IntArrayList> ingredientSlots = ItemType.getSlotsPerItem(recipe.getRecipeItems());
+            Slot[] slotReference = {container.getSlot(range.getFirst()), craftingOutputSlot};
+            for(Map.Entry<ItemType, IntArrayList> entry : ingredientSlots.entrySet()) {
+                int countItems = 0;
+                final int numSlotsWithItem = entry.getValue().size();
+                final ItemStack stackReference = entry.getKey().getStack();
+                final int itemsCraftOnce = numSlotsWithItem * stackReference.getMaxCount();
+                for(Slot slot : container.slots) {
+                    if(!areSlotsInSameInventory(slot, slotReference) && slot.hasStack()
+                            && areStacksEqual(stackReference, slot.getStack())){
+                        countItems += slot.getStack().getCount();
+                    }
+                }
+                if(countItems <= itemsCraftOnce && countItems % numSlotsWithItem == 0) {
+                    return countItems == numSlotsWithItem ? 0 : 1;
+                }
+            }
+            return 2;
+        }
+        return 0;
+    }
+
     private static int putSingleItemIntoSlots(HandledScreen<? extends ScreenHandler> gui,
             IntArrayList targetSlots,
             int startIndex) {
@@ -1522,7 +1601,7 @@ public class InventoryUtils {
     }
 
     private static void moveOneRecipeItemIntoCraftingGrid(HandledScreen<? extends ScreenHandler> gui,
-            Slot slotGridFirst,
+            Slot[] slotGrids,
             ItemStack ingredientReference,
             IntArrayList targetSlots) {
         ScreenHandler container = gui.getScreenHandler();
@@ -1531,7 +1610,7 @@ public class InventoryUtils {
         int slotCount = targetSlots.size();
 
         while (index < slotCount) {
-            slotNum = getSlotNumberOfSmallestStackFromDifferentInventory(container, slotGridFirst, ingredientReference,
+            slotNum = getSlotNumberOfSmallestStackFromDifferentInventory(container, slotGrids, ingredientReference,
                     slotCount);
 
             // Didn't find ingredient items
@@ -1603,7 +1682,7 @@ public class InventoryUtils {
     }
 
     private static int getSlotNumberOfLargestMatchingStackFromDifferentInventory(ScreenHandler container,
-            Slot slotReference,
+            Slot[] slotReference,
             ItemStack stackReference) {
         int slotNum = -1;
         int largest = 0;
@@ -1612,8 +1691,8 @@ public class InventoryUtils {
             if (areSlotsInSameInventory(slot, slotReference) == false && slot.hasStack()
                     && areStacksEqual(stackReference, slot.getStack())) {
                 int stackSize = getStackSize(slot.getStack());
-
-                if (stackSize > largest) {
+                // 这个stack应该是legal的，也就是我们强行忽略掉overstacked items
+                if (stackSize > largest && stackSize <= slot.getStack().getMaxCount()) {
                     slotNum = slot.id;
                     largest = stackSize;
                 }
@@ -1630,7 +1709,7 @@ public class InventoryUtils {
      * then the largest one is selected.
      */
     private static int getSlotNumberOfSmallestStackFromDifferentInventory(ScreenHandler container,
-            Slot slotReference,
+            Slot[] slotReference,
             ItemStack stackReference,
             int idealSize) {
         int slotNumSmallest = -1;
@@ -1785,6 +1864,14 @@ public class InventoryUtils {
         return stack1.isEmpty() == false && stack1.isItemEqual(stack2) && ItemStack.areNbtEqual(stack1, stack2);
     }
 
+    private static boolean areSlotsInSameInventory(Slot slot1, Slot[] slots) {
+        for (Slot slot: slots) {
+            if(areSlotsInSameInventory(slot, slot1)) {
+                return true;
+            }
+        }
+        return false;
+    }
     private static boolean areSlotsInSameInventory(Slot slot1, Slot slot2) {
         return areSlotsInSameInventory(slot1, slot2, false);
     }
@@ -2344,17 +2431,19 @@ public class InventoryUtils {
             return;
         }
 
-        int numSlots = gui.getScreenHandler().slots.size();
-
         // Start the drag
         clickSlot(gui, -999, 0, SlotActionType.QUICK_CRAFT);
 
+        ScreenHandler container = gui.getScreenHandler();
+        int numSlots = container.slots.size();
         for (int slotNum : targetSlots) {
             if (slotNum >= numSlots) {
                 break;
             }
-
-            clickSlot(gui, slotNum, 1, SlotActionType.QUICK_CRAFT);
+            ItemStack item = container.slots.get(slotNum).getStack();
+            if(item.getCount() < item.getMaxCount()) {
+                clickSlot(gui, slotNum, 1, SlotActionType.QUICK_CRAFT);
+            }
         }
 
         // End the drag

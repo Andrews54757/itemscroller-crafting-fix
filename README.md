@@ -1,22 +1,24 @@
 ## Note
-This is a customized version of Masa's itemscroller mod that fixes crafting features for 1.18. Masa's original mod can be found [here](https://github.com/maruohon/itemscroller)
+This is a customized version of Andrew54757's itemscroller-crafting-fix, which is a customized version of Masa's itemscroller mod that fixes crafting features for 1.18.
+
+Masa's original mod can be found [here](https://github.com/maruohon/itemscroller)
+
+Andrew54757's mod can be found [here](https://github.com/Andrews54757/itemscroller-crafting-fix)
 
 Customizations:
-* More accurate/faster crafting through recipe book protocol
-* Toggleable crafting (so you can keep crafting without holding down a key, eg for crafting millions of pistons)
-* Honey crafting
+Beside the customizations offered by crafting-fix, we also provide some features that are not present in the original mod:
+* Apply crafting features over anvil, grindstone(could help with building overstacked items), stonecutter.
+* Renaming multiple items automatically over anvil
+* `reserveCrafting` to make it possible to pick up every kind of recipe items after each crafting
 
-- Removed carpetControlQ crafting option as it causes a "slow crafting issue"
-- Removed packetRateLimit as it may lead to problems.
+- Fix rendering bug when recipes do not have the length of a square number 
 
-## This is not Masa's original itemscroller. If you have issues with this mod, please contact Andrews54757 (or open a bug report here).
+除crafting-fix提供的功能外，还提供以下功能：
+* 可以在铁砧/砂轮(可用于合成堆叠附魔书等)/切石机上使用快速合成功能
+* 可以在铁砧上批量重命名物品，只需快速合成前在铁砧上预先写好名字并调用对应的快速合成功能即可，注意仅能用于`合成而不扔出`
+* `reserveCrafting` 选项可以在合成后保留物品栏中合成材料的槽位，无论地上合成材料扔出的顺序，总有物品栏位置能从地上捡起合成材料
 
-### What's different?
-Post 1.13, Mojang has changed the crafting mechanics of the game. Before 1.13, crafting was very fast as much of the logic was handled client-side. In 1.13, most of the crafting logic was moved to the server. This broke Itemscroller's fast crafting features, since every ingredient now had to be moved one slot at a time to the crafting grid for it to work. This drastically worsened server-client desync, a compounding problem, leading to an increasing number of failed crafting attempts and accidental ingredient leaks which made afk crafting impossible. 
-
-This customized version of the mod, fixes the problem by handling ingredient movement server-side using the recipe book protocols when it can. 
-
-**Note: Some recipes like fireworks rockets that are not in the recipe book do not take advantage of this protocol, in those cases old itemscroller methods will be used**
+## This is not Masa's original itemscroller. If you have issues with this mod, please contact WenDavid552 (or open a bug report here).
 
 Item Scroller
 ==============
